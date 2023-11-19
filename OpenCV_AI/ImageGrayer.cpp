@@ -48,8 +48,8 @@ Mat ImageGrayer::gray()
 		for (int j = 0; j < src.cols; j++)
 
 		{
-			auto *src_data = src.ptr<Vec3b>(i, j);
-			auto *dst_data = dst.ptr<uchar>(i, j);
+			auto src_data = src.ptr<Vec3b>(i, j);
+			auto dst_data = dst.ptr<uchar>(i, j);
 
 			//int src_offset = j * 3;//计算原始图像的第 i 行第 j 列的像素的偏移量
 
