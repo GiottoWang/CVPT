@@ -169,9 +169,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="test.jpg" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="imgprog.hpp" />
     <ClInclude Include="picstream.h" />
   </ItemGroup>
