@@ -20,7 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="preprocessingcpp.cpp" />
+    <ClCompile Include="preprocessing.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="preprocessing.h" />
