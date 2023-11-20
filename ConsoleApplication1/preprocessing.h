@@ -3,24 +3,37 @@
 #include <map>
 #include <algorithm>
 #include <numeric>
-class preprocessing {
+class preprocessing
+{
 public:
-	typedef int _channel_t;
+	typedef int channel_t;
+
+	//构造函数
 	preprocessing() = default;
-	cv::Mat bgr2Gray();
+	preprocessing(cv::Mat a) :input(a) {};
+
+	//将RGB图像转换为灰度图像的函数
+	cv::Mat bgr2gray();
+
 private:
-	//enum Channel { B, G, R };
-	//enum Threshold { TH_WHIGHT = 20 };
-	static const double templateChannelWeight[3];
-	static const _channel_t B = 0;
-	static const _channel_t G = 1;
-	static const _channel_t R = 2;
+	//定义一些常量来替代魔法数字
+	static const channel_t B = 0;
+	static const channel_t G = 1;
+	static const channel_t R = 2;
 	static const int THRESHOLD_WEIGHT = 20;
-	cv::Mat img;
-	//封装一个函数来计算图像的权重和补偿
-	void calculateWeightAndCompensation(cv::Mat img_channels[3], double weight[3], double compensation[3]);
 
-	//封装一个函数来转换图像的色彩空间和色彩深度
-	void convertColorSpaceAndDepth(cv::Mat& img, cv::Mat& output);
+	//RGB图像
+	cv::Mat input;
 
+	//三通道灰度占比统计量结构体
+	struct proportion_t {
+		channel_t channel;
+		double weight;
+	};
+
+	//计算图像的补偿权重
+	void calculateWeight(cv::Mat img_channels[3], double weight[3]);
+
+	//转换图像的色彩空间和色彩深度
+	void convertColor(cv::Mat& input, cv::Mat& output);
 };

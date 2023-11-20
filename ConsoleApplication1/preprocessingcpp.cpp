@@ -1,299 +1,149 @@
 #include "preprocessing.h"
-#include <algorithm>
-#include <numeric>
-const double preprocessing::templateChannelWeight[3] = { 0.114,0.299,0.587 };
+//将RGB图像转换为灰度图像的函数实现
+cv::Mat preprocessing::bgr2gray() {
+	cv::Mat output; //输出的灰度图像
+	convertColor(input, output); //转换
+	return output; //返回
+}
 
-void preprocessing::calculateWeightAndCompensation(cv::Mat img_channels[3], double weight[3], double compensation[3]) {
-	//三通道灰度占比统计量，eg proportion['B']为，图像整体B通道灰度占三通道灰度之和的比
-	std::map<_channel_t, double> proportion;
-	proportion.insert(std::pair<_channel_t, double>{B, 0});
-	proportion.insert(std::pair<_channel_t, double>{G, 0});
-	proportion.insert(std::pair<_channel_t, double>{R, 0});
-	auto &proportion_B = proportion[B];
-	auto &proportion_G = proportion[G];
-	auto &proportion_R = proportion[R];
+//转换图像的色彩空间和色彩深度的函数实现
+void preprocessing::convertColor(cv::Mat& input, cv::Mat& output) {
+	//检查图像的类型和通道数
+	if (input.type() != CV_8UC3) {
+		throw std::invalid_argument("The input image must be of type CV_8UC3");
+	}
 
-	//亮通道统计量，eg count[0]为该点的B通道强度最高
-	int count[3];//0->B,1->G,2->R
-	auto &count_B = count[B];
-	auto &count_G = count[G];
-	auto &count_R = count[R];
+	//空灰度图像
+	output = cv::Mat::zeros(input.rows, input.cols, CV_8UC1);
 
-	//归一化
-	double normalization[3];
-	auto &normalized_B = normalization[B];
-	auto &normalized_G = normalization[G];
-	auto &normalized_R = normalization[R];
+	//分离图像通道
+	cv::Mat channel[3];//0->B,1->G,2->R
+	cv::split(input, channel);
 
-	//
-	double re_tmpcw[3];
-	auto &re_tmpcw_B = re_tmpcw[B];
-	auto &re_tmpcw_G = re_tmpcw[G];
-	auto &re_tmpcw_R = re_tmpcw[R];
+	//计算图像的补偿权重
+	double weight[3] = { 0,0,0 };
+	calculateWeight(channel, weight);
+
+	//根据补偿权重计算灰度值
+	//output = channel[B] * weight[B] + channel[G] * weight[G] + channel[R] * weight[R];
+	for (int i = 0; i < input.rows; i++) {
+		auto intensity_B = channel[B].ptr<uchar>(i);
+		auto intensity_G = channel[G].ptr<uchar>(i);
+		auto intensity_R = channel[R].ptr<uchar>(i);
+		auto intensity = output.ptr<uchar>(i);
+		for (int j = 0; j < input.cols; j++)
+		{
+			if (intensity_B[j] == 0 && intensity_G[j] == 0 && intensity_R[j] == 0)
+				continue;
+			intensity[j] = intensity_B[j] * weight[B] + intensity_G[j] * weight[G] + intensity_R[j] * weight[R];
+		}
+	}
+}
+
+//计算图像补偿权重函数的实现
+void preprocessing::calculateWeight(cv::Mat channel[3], double weight[3]) {
+	//一些统计量数组
+	proportion_t proportion[3];//三通道灰度占比统计量，eg proportion[B]为，图像整体B通道灰度占三通道灰度之和的比
+	proportion[B] = { B,0 };
+	proportion[G] = { G,0 };
+	proportion[R] = { R,0 };
+	int count[3] = { 0,0,0 };//亮通道统计量，eg count[0]为该点的B通道强度最高
+	double compensation[3] = { 0,0,0 };//第一次补偿后的权重
+	double normalization[3] = { 0,0,0 };//归一化第一次补偿权重
+	double templateWeight[3] = { 0.114,0.299,0.587 };//模板权重
+	double re_tmpW[3] = { 0,0,0 };//重分配后的模板权重
 
 	//统计原始亮通道个数和三通道灰度占比
-	//使用一个单层循环来遍历图像的所有像素，减少时间复杂度
-	//使用ptr方法来访问图像的像素值，提高代码的效率和性能
-	for (int i = 0; i < img.rows * img.cols; i++)
-	{
-		auto intensity_B = img_channels[B].ptr<uchar>(i);
-		auto intensity_G = img_channels[G].ptr<uchar>(i);
-		auto intensity_R = img_channels[R].ptr<uchar>(i);
+	for (int i = 0; i < input.rows; i++)
+	{	//临时指针，存放三通道的行指针
+		auto intensity_B = channel[B].ptr<uchar>(i);
+		auto intensity_G = channel[G].ptr<uchar>(i);
+		auto intensity_R = channel[R].ptr<uchar>(i);
+		for (int j = 0; j < input.cols; j++)
+		{	//如果图像强度小于阈值则跳过统计
+			if (intensity_B[j] <= THRESHOLD_WEIGHT && intensity_G[j] <= THRESHOLD_WEIGHT && intensity_R[j] <= THRESHOLD_WEIGHT)
+				continue;
 
-		if (*intensity_B <= THRESHOLD_WEIGHT && *intensity_G <= THRESHOLD_WEIGHT && *intensity_R <= THRESHOLD_WEIGHT)
-			continue;
+			uchar temp[3] = { intensity_B[j] ,intensity_G[j],intensity_R[j] };
+			uchar maxElem = *std::max_element(temp, temp + 3);
+			if (intensity_B[j] == maxElem)
+				count[B]++;
+			else if (intensity_G[j] == maxElem)
+				count[G]++;
+			else
+				count[R]++;
 
-		uchar temp[3] = { *intensity_B ,*intensity_G,*intensity_R };
-		uchar maxElem = *std::max_element(temp, temp + 3);
-		if (*intensity_B == maxElem)
-			count_B++;
-		else if (*intensity_G == maxElem)
-			count_G++;
-		else
-			count_R++;
-		double weight_sum = double(*intensity_B + *intensity_G + *intensity_R);
-		proportion_B += double(*intensity_B) / weight_sum;
-		proportion_G += double(*intensity_G) / weight_sum;
-		proportion_R += double(*intensity_R) / weight_sum;
+			double weight_sum = double(intensity_B[j] + intensity_G[j] + intensity_R[j]);
+			proportion[B].weight += double(intensity_B[j]) / weight_sum;
+			proportion[G].weight += double(intensity_G[j]) / weight_sum;
+			proportion[R].weight += double(intensity_R[j]) / weight_sum;
+		}
+	}
 
-	}//for
+	//---------------------------------------------一次权重补偿------------------------------------------------//
 
-	//对灰度值进行一次补偿
-	(count_G >= count_R) ? count_G *= 2 : count_R *= 2;
+	//对灰度进行一次补偿
+	(count[G] >= count[R]) ? count[G] *= 2 : count[R] *= 2;
 
 	//补偿后，若图像目标区域曝光较高
-	if (count_G + count_R >= count_B / 5)
+	if (count[G] + count[R] >= count[B] / 5)
 	{
 		//对灰度进行二次补偿
-		(count_G >= count_R) ? count_R *= 2 : count_G *= 2;
+		(count[G] >= count[R]) ? count[R] *= 2 : count[G] *= 2;
 
-		//削弱蓝色通道权重，补偿其余两通道权重
-		compensation[B] = (count_B - count_G - count_R) / 4;
-		compensation[G] = proportion_G + (proportion_B - compensation[B]) / 2;
-		compensation[R] = proportion_R + (proportion_B - compensation[B]) / 2;
+		//第一次权重补偿：削弱蓝色通道权重，补偿其余两通道权重
+		compensation[B] = (count[B] - count[G] - count[R]) / 4;
+		compensation[G] = proportion[G].weight + (proportion[B].weight - compensation[B]) / 2;
+		compensation[R] = proportion[R].weight + (proportion[B].weight - compensation[B]) / 2;
 		//fan_switch = false;
 	}
 	//补偿后，若图像目标区域曝光较低
 	else
 	{
 		//权重不变
-		compensation[B] = proportion_B;
-		compensation[G] = proportion_G;
-		compensation[R] = proportion_R;
+		compensation[B] = proportion[B].weight;
+		compensation[G] = proportion[G].weight;
+		compensation[R] = proportion[R].weight;
 	}
 
-	//compensation归一化
+	//归一化第一次权重补偿
 	double compensation_sum = std::accumulate(compensation, compensation + 3, 0);
-	for (auto i = 0; i < 3; i++) {
+	for (int i = 0; i < 3; i++) {
 		normalization[i] = compensation[i] / compensation_sum;
 	}
 
-	auto cmp = [](std::pair<_channel_t, double> a, std::pair<_channel_t, double> b)-> bool {
+	//---------------------------------------------二次权重补偿------------------------------------------------//
+	//对proportion进行降序排列
+	auto cmp = [](proportion_t a, proportion_t b)-> bool {
 		// 如果a大于b，返回true，表示a应该排在b前面，即降序
-		return a.second > b.second;
+		return a.weight > b.weight;
 	};
-	std::sort(proportion.begin(), proportion.end(), cmp);//降序排列
+	std::sort(proportion, proportion + 3, cmp);//降序排列
 
+	//重新分配模板权重
 	int i = 0;
-	auto choose = [count, i](double& a)->void {
-		a = (count[1] + count[2] >= count[0] / 5) ? preprocessing::templateChannelWeight[i] : preprocessing::templateChannelWeight[2 - i];
+	auto choose = [count, templateWeight, &i](double& a)->void {
+		a = (count[G] + count[R] >= count[B] / 5) ? templateWeight[i] : templateWeight[2 - i];
 	};
-
-	for (auto t = proportion.begin(); t != proportion.end(); t++, i++)
+	for (; i < 3; i++)
 	{
-		if (t->first == B)
-			choose(re_tmpcw_B);
-		else if (t->first == G)
-			choose(re_tmpcw_G);
-		else
-			choose(re_tmpcw_R);
-
-	}
-	weight[B] = (re_tmpcw_B + normalized_B) / 2;
-	weight[G] = (re_tmpcw_G + normalized_G) / 2;
-	weight[R] = (re_tmpcw_R + normalized_R) / 2;
-}
-
-//转换图像的色彩空间和色彩深度的函数实现
-void preprocessing::convertColorSpaceAndDepth(cv::Mat& img, cv::Mat& output) {
-	//检查图像的类型和通道数
-	if (img.type() != CV_8UC3) {
-		throw std::invalid_argument("The input image must be of type CV_8UC3");
-	}
-
-	//创建一个空的灰度图像
-	output = cv::Mat::zeros(img.rows, img.cols, CV_8UC1);
-
-	//分离图像的三个通道
-	cv::Mat channels[3];//0->B,1->G,2->R
-	cv::split(img, channels);
-
-	//计算图像的权重和补偿
-	double weight[3];
-	double compensation[3];
-	calculateWeightAndCompensation(channels, weight, compensation);
-
-	//根据权重和补偿计算灰度值
-	//使用一个单层循环来遍历图像的所有像素，减少时间复杂度
-	//使用ptr方法来访问图像的像素值，提高代码的效率和性能
-	for (int i = 0; i < img.rows * img.cols; i++)
-	{
-		uchar *intensity_B = channels[B].ptr<uchar>(i);
-		auto intensity_G = channels[G].ptr<uchar>(i);
-		auto intensity_R = channels[R].ptr<uchar>(i);
-		
-		if (*intensity_B == 0 && *intensity_G == 0 && *intensity_R == 0)
-			continue;
-		*output.ptr<uchar>(i) = 
-			*intensity_B * weight[B] + *intensity_G * weight[G] + *intensity_R * weight[R];
-	}
-}
-
-//将RGB图像转换为灰度图像的函数实现
-cv::Mat preprocessing::bgr2Gray() {
-	cv::Mat output; //输出的灰度图像
-	convertColorSpaceAndDepth(img, output); //转换
-	return output; //返回
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-cv::Mat preprocessing::bgr2Gray() {
-	cv::Mat output = cv::Mat::zeros(img.rows, img.cols, CV_8UC1);
-
-	cv::Mat img_channels[3];//0->B,1->G,2->R
-	cv::split(img, img_channels);
-	//三通道灰度占比统计量，eg proportion_B为，图像整体B通道灰度占三通道灰度之和的比
-	std::map<char, double> proportion;
-	proportion.insert(std::pair<char, double>{'B', 0});
-	proportion.insert(std::pair<char, double>{'G', 0});
-	proportion.insert(std::pair<char, double>{'R', 0});
-	auto &proportion_B = proportion['B'];
-	auto &proportion_G = proportion['G'];
-	auto &proportion_R = proportion['R'];
-	//亮通道统计量，eg count_B为该点的B通道强度最高
-	int count[3];//0->B,1->G,2->R
-	auto &count_B = count[0];
-	auto &count_G = count[1];
-	auto &count_R = count[2];
-	//
-	double compensation[3];
-	auto &compensation_B = compensation[0];
-	auto &compensation_G = compensation[1];
-	auto &compensation_R = compensation[2];
-	//
-	double normalization[3];
-	auto &normalized_B= normalization[0];
-	auto &normalized_G= normalization[1];
-	auto &normalized_R= normalization[2];
-	//
-	double re_tmpcw[3];
-	auto &re_tmpcw_b = re_tmpcw[0];
-	auto &re_tmpcw_g = re_tmpcw[1];
-	auto &re_tmpcw_r = re_tmpcw[2];
-	//////////////////////////////////////////////////////////////////
-	//统计原始亮通道个数和三通道灰度占比
-	for (int i = 0; i < img.rows; i++)
-	{
-		for (int j = 0; j < img.cols; j++)
+		switch (proportion[i].channel)
 		{
-			auto &weight_B = img_channels[0].at<uchar>(i, j);
-			auto &weight_G= img_channels[1].at<uchar>(i, j);
-			auto &weight_R= img_channels[2].at<uchar>(i, j);
-
-			if (weight_B <= 20 && weight_G <= 20 && weight_R <= 20)
-				continue;
-
-			uchar temp[3] = { weight_B ,weight_G,weight_R };
-			uchar maxElem = *std::max_element(temp, temp + 3);
-			if (weight_B == maxElem)
-				count_B++;
-			else if (weight_G == maxElem)
-				count_G++;
-			else
-				count_R++;
-			double weight_sum = double(weight_B + weight_G + weight_R);
-			proportion_B += double(weight_B) / weight_sum;
-			proportion_G += double(weight_G) / weight_sum;
-			proportion_R += double(weight_R) / weight_sum;
-
-		}//for
-	}//for
-	//////////////////////////////////////////////////////////////////
-
-	//对灰度值进行一次补偿
-	(count_G >= count_R) ? count_G *= 2 : count_R *= 2;
-	//补偿后，若图像目标区域曝光较高
-	if (count_G + count_R >= count_B / 5)
-	{	//对灰度进行二次补偿
-	    (count_G >= count_R) ? count_R *= 2 : count_G *= 2;
-		//削弱蓝色通道权重，补偿其余两通道权重
-		compensation_B = (count_B - count_G - count_R) / 4;
-		compensation_G = proportion_G + (proportion_B - compensation_B) / 2;
-		compensation_R = proportion_R + (proportion_B - compensation_B) / 2;
-		//fan_switch = false;
-	}
-	//补偿后，若图像目标区域曝光较低
-	else
-	{	//权重不变
-		compensation_B =proportion_B;
-		compensation_G =proportion_G;
-		compensation_R = proportion_R;
-	}
-	//compensation归一化
-	double compensation_sum=std::accumulate(compensation, compensation + 3, 0);
-	for (auto i = 0; i < 3; i++) {
-		normalization[i] = compensation[i] / compensation_sum;
-	}
-	///////////////////////////////////////////////////////////////////
-
-	auto cmp = [](std::pair<char, double> a, std::pair<char, double> b)-> bool{
-		// 如果a大于b，返回true，表示a应该排在b前面，即降序
-		return a.second > b.second;
-	};
-	std::sort(proportion.begin(), proportion.end(), cmp);//降序排列
-	int i = 0;
-
-	auto choose = [count,i](double &a)->void{
-		a = (count[1] + count[2] >= count[0] / 5) ? preprocessing::templateChannelWeight[i]: preprocessing::templateChannelWeight[2 - i];
-	};
-
-	for (auto t = proportion.begin(); t != proportion.end(); t++,i++)
-	{
-		if (t->first == 'B')
-			choose(re_tmpcw_b);
-		else if (t->first == 'G')
-			choose(re_tmpcw_g);
-		else
-			choose(re_tmpcw_r);
-		
-	}
-	double finalchannels[3];
-	finalchannels[0] = (re_tmpcw_b + normalized_B) / 2;
-	finalchannels[1] = (re_tmpcw_g + normalized_G) / 2;
-	finalchannels[2] = (re_tmpcw_r + normalized_R) / 2;
-	for (int i = 0; i < img.rows; i++)
-	{
-		for (int j = 0; j < img.cols; j++)
-		{
-			auto &weight_B = img_channels[0].at<uchar>(i, j);
-			auto &weight_G = img_channels[1].at<uchar>(i, j);
-			auto &weight_R = img_channels[2].at<uchar>(i, j);
-			if (weight_B == 0 && weight_G == 0 && weight_R == 0)
-				continue;
-			output.at<uchar>(i, j) = weight_B * finalchannels[0] + weight_G * finalchannels[1] + weight_R * finalchannels[2];
+		case B:
+			choose(re_tmpW[B]);
+			break;
+		case G:
+			choose(re_tmpW[G]);
+			break;
+		case R:
+			choose(re_tmpW[R]);
+		default:
+			break;
 		}
 	}
-	return output;
+
+	//二次权重补偿
+	weight[B] = (re_tmpW[B] + normalization[B]) / 2;
+	weight[G] = (re_tmpW[G] + normalization[G]) / 2;
+	weight[R] = (re_tmpW[R] + normalization[R]) / 2;
 }
