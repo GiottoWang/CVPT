@@ -26,7 +26,7 @@ private:
 	cv::Mat input;
 
 	//三通道灰度占比统计量结构体
-	struct proportion_t {
+	struct count_t {
 		channel_t channel;
 		double weight;
 	};
