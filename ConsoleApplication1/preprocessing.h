@@ -10,10 +10,10 @@ public:
 
 	//构造函数
 	preprocessing() = default;
-	preprocessing(cv::Mat a) :input(a) {};
+	preprocessing(cv::Mat a) :data(a) {};
 
 	//将RGB图像转换为灰度图像的函数
-	cv::Mat bgr2gray();
+	cv::Mat process();
 
 private:
 	//定义一些常量来替代魔法数字
@@ -23,10 +23,10 @@ private:
 	static const int THRESHOLD_WEIGHT = 20;
 
 	//RGB图像
-	cv::Mat input;
+	cv::Mat data;
 
 	//三通道灰度占比统计量结构体
-	struct proportion_t {
+	struct count_t {
 		channel_t channel;
 		double weight;
 	};
@@ -34,6 +34,12 @@ private:
 	//计算图像的补偿权重
 	void calculateWeight(cv::Mat img_channels[3], double weight[3]);
 
-	//转换图像的色彩空间和色彩深度
-	void convertColor(cv::Mat& input, cv::Mat& output);
+	//转换图像的色彩空间
+	void convertColor( );
+
+	//对灰度图像进行去噪
+	void deNoise();
+
+	//对低曝光图像进行取反
+	void invertion();
 };
