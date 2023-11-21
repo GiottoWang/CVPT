@@ -5,6 +5,13 @@ cv::Mat preprocessing::process() {
 	return this->data; //返回
 }
 
+
+void preprocessing::deNoise() {
+
+
+
+}
+
 //转换图像的色彩空间和色彩深度的函数实现
 void preprocessing::convertColor() {
 	//检查图像的类型和通道数
