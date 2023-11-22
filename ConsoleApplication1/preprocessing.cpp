@@ -3,12 +3,12 @@
 cv::Mat preprocessing::process() {
 	convertColor(); //转换
 	deNoise();
-	return this->data; //返回
+	return this->output; //返回
 }
 
 void preprocessing::deNoise() {
-	cv::Mat result = data.clone();
-	cv::Mat mark = cv::Mat::zeros(data.rows, data.cols, CV_8UC1);  //区域生长标记
+	cv::Mat result = output.clone();
+	cv::Mat mark = cv::Mat::zeros(output.rows, output.cols, CV_8UC1);  //区域生长标记
 	std::vector<spot_t> spot;
 	int num = 0;
 	int around;
@@ -37,7 +37,7 @@ void preprocessing::deNoise() {
 					seed_wait.x = seed.x + direct[k][0];    //第i个坐标0行，即x坐标值
 					seed_wait.y = seed.y + direct[k][1];    //第i个坐标1行，即y坐标值
 					if (seed_wait.x < 0 || seed_wait.y < 0 ||
-						(seed_wait.x >= data.rows) || (seed_wait.y >= data.cols))
+						(seed_wait.x >= output.rows) || (seed_wait.y >= output.cols))
 					{
 						around--;
 						continue;
@@ -46,7 +46,7 @@ void preprocessing::deNoise() {
 					flag = mark.at<uchar>(seed_wait.x, seed_wait.y);
 					if (flag == 0)
 					{
-						if (data.at<uchar>(seed_wait.x, seed_wait.y) != 0)
+						if (output.at<uchar>(seed_wait.x, seed_wait.y) != 0)
 						{
 							num++;
 							mark.at<uchar>(seed_wait.x, seed_wait.y) = 255; //flag=255表示该点已经是区域生长中的点，不再做判断
@@ -93,12 +93,12 @@ void preprocessing::deNoise() {
 				seed_wait.x = seed.x + direct[k][0];    //第i个坐标0行，即x坐标值
 				seed_wait.y = seed.y + direct[k][1];    //第i个坐标1行，即y坐标值
 				if (seed_wait.x < 0 || seed_wait.y < 0 ||
-					(seed_wait.x >= data.rows) || (seed_wait.y >= data.cols))
+					(seed_wait.x >= output.rows) || (seed_wait.y >= output.cols))
 					continue;
 				flag = mark.at<uchar>(seed_wait.x, seed_wait.y);
 				if (flag == 0)
 				{
-					if (data.at<uchar>(seed_wait.x, seed_wait.y) != 0)
+					if (output.at<uchar>(seed_wait.x, seed_wait.y) != 0)
 					{
 						result.at<uchar>(seed_wait.x, seed_wait.y) = 0;
 						mark.at<uchar>(seed_wait.x, seed_wait.y) = 255; //flag=1表示该点已经是区域生长中的点，不再做判断
@@ -108,7 +108,7 @@ void preprocessing::deNoise() {
 			}
 		}
 	}
-	data = result.clone();
+	output = result.clone();
 }
 
 //转换图像的色彩空间和色彩深度的函数实现
@@ -143,7 +143,7 @@ void preprocessing::convertColor() {
 			intensity[j] = intensity_B[j] * weight[B] + intensity_G[j] * weight[G] + intensity_R[j] * weight[R];
 		}
 	}
-	data = result.clone();
+	output = result.clone();
 	result.release();
 }
 

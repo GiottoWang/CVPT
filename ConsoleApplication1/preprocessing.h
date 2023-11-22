@@ -25,8 +25,10 @@ private:
 	constexpr static  int THRESHOLD_WEIGHT = 20;
 	constexpr static double THRESHOLD_NOISE = 0.03;
 
-	//RGB图像
+	//输入图像
 	cv::Mat data;
+	//输出图像
+	cv::Mat output;
 
 	//三通道灰度占比统计量结构体
 	struct count_t {
