@@ -2,14 +2,113 @@
 //将RGB图像转换为灰度图像的函数实现
 cv::Mat preprocessing::process() {
 	convertColor(); //转换
+	deNoise();
 	return this->data; //返回
 }
 
-
 void preprocessing::deNoise() {
+	cv::Mat result = data.clone();
+	cv::Mat mark = cv::Mat::zeros(data.rows, data.cols, CV_8UC1);  //区域生长标记
+	std::vector<spot_t> spot;
+	int num = 0;
+	int around;
+	std::vector<cv::Point2f> seeds;
+	cv::Point2f seed;
+	cv::Point2f seed_wait; //待生长种子点
+	constexpr float direct[9][2] = { {-1,-1}, {0,-1}, {1,-1}, {1,0}, {1,1}, {0,1}, {-1,1}, {-1,0}, {0,0} };  //9邻域
+	int flag;
+	for (int i = 0; i < result.rows; i++)
+	{
+		for (int j = 0; j < result.cols; j++)
+		{
+			if (result.at<uchar>(i, j) != 0 && mark.at<uchar>(i, j) == 0)
+			{
+				seed.x = float(i);
+				seed.y = float(j);
+				seeds.emplace_back(seed);
+			}
+			while (!seeds.empty())
+			{
+				seed = seeds.back();     //取出最后一个元素
+				seeds.pop_back();         //删除栈中最后一个元素,防止重复扫描
+				around = 8;			//以8邻域去除孤立点
+				for (int k = 0; k < 8; k++)    //遍历种子点的8邻域
+				{
+					seed_wait.x = seed.x + direct[k][0];    //第i个坐标0行，即x坐标值
+					seed_wait.y = seed.y + direct[k][1];    //第i个坐标1行，即y坐标值
+					if (seed_wait.x < 0 || seed_wait.y < 0 ||
+						(seed_wait.x >= data.rows) || (seed_wait.y >= data.cols))
+					{
+						around--;
+						continue;
+					}
 
-
-
+					flag = mark.at<uchar>(seed_wait.x, seed_wait.y);
+					if (flag == 0)
+					{
+						if (data.at<uchar>(seed_wait.x, seed_wait.y) != 0)
+						{
+							num++;
+							mark.at<uchar>(seed_wait.x, seed_wait.y) = 255; //flag=255表示该点已经是区域生长中的点，不再做判断
+							seeds.emplace_back(seed_wait);    //将满足生长条件的待生长种子点放入种子栈中
+						}
+						else                            //******************/
+						{								//*			       */
+							around--;					//*	 去除单个孤立点   */
+						}								//*			       */
+						if (around == 0)				//*			       */
+						{								//*			       */
+							result.at<uchar>(i, j) = 0;	//******************/
+						}
+					}
+				}
+				if (seeds.empty() && num != 0)
+				{
+					spot.emplace_back(spot_t{ i, j, num });
+				}
+			}
+			num = 0;
+		}
+	}
+	auto cmp = [](spot_t a, spot_t b)-> bool {
+		// 如果a大于b，返回true，表示a应该排在b前面，即降序
+		return a.num > b.num;
+	};
+	std::sort(spot.begin(), spot.end(), cmp);
+	mark = 0;
+	for (int n = 2; n < spot.size(); n++)
+	{
+		if (spot[n].num < spot[0].num * THRESHOLD_NOISE)//光斑去不干净可以将0.03加大
+		{
+			seed.x = spot[n].x;
+			seed.y = spot[n].y;
+			seeds.emplace_back(seed);
+		}
+		while (!seeds.empty())
+		{
+			seed = seeds.back();     //取出最后一个元素
+			seeds.pop_back();         //删除栈中最后一个元素,防止重复扫描
+			for (int k = 0; k < 9; k++)    //遍历种子点的8邻域
+			{
+				seed_wait.x = seed.x + direct[k][0];    //第i个坐标0行，即x坐标值
+				seed_wait.y = seed.y + direct[k][1];    //第i个坐标1行，即y坐标值
+				if (seed_wait.x < 0 || seed_wait.y < 0 ||
+					(seed_wait.x >= data.rows) || (seed_wait.y >= data.cols))
+					continue;
+				flag = mark.at<uchar>(seed_wait.x, seed_wait.y);
+				if (flag == 0)
+				{
+					if (data.at<uchar>(seed_wait.x, seed_wait.y) != 0)
+					{
+						result.at<uchar>(seed_wait.x, seed_wait.y) = 0;
+						mark.at<uchar>(seed_wait.x, seed_wait.y) = 255; //flag=1表示该点已经是区域生长中的点，不再做判断
+						seeds.emplace_back(seed_wait);    //将满足生长条件的待生长种子点放入种子栈中
+					}
+				}
+			}
+		}
+	}
+	data = result.clone();
 }
 
 //转换图像的色彩空间和色彩深度的函数实现
