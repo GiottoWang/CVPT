@@ -1,12 +1,84 @@
-#include "preprocessing.h"
+#include "PreprocessingAlgorithm.h"
 //将RGB图像转换为灰度图像的函数实现
-cv::Mat preprocessing::process() {
+cv::Mat PreprocessingAlgorithm_A::process() {
 	convertColor(); //转换
 	deNoise();
+	invertion();
 	return this->output; //返回
 }
 
-void preprocessing::deNoise() {
+//对低曝光图像进行取反
+void PreprocessingAlgorithm_A::invertion() {
+
+	cv::Mat inverted = output.clone();
+	cv::Mat result = output.clone();
+	int direct[4] = { -2,-1,1,2 };
+	int y_left, y_right;
+	const int BEGIN = -1;
+	const int END = output.cols + 1;
+	if (FLAG_INVERT == true)
+	{
+		std::vector<effective_t> effective;
+		//AreaGrowData* effective = new AreaGrowDataoutput.rows;
+		for (int i = 0; i < inverted.rows; i++)
+		{
+			y_left = END;
+			y_right = BEGIN;
+			auto intensity_I = inverted.ptr<uchar>(i); // 获取第i行的指针
+			auto intensity_O = output.ptr<uchar>(i); // 获取第i行的指针
+			for (int j = 0; j < inverted.cols; j++)
+			{
+				if (intensity_O[j] == 0)
+					continue;
+				if (y_left > j)
+					y_left = j;
+				if (y_right < j)
+					y_right = j;
+				intensity_I[j] = 255 ^ intensity_O[j]; // 使用位操作代替求反
+			}
+			if (y_left != END || y_right != BEGIN)
+			{
+				//effective[i].x = i;
+				//effective[i].y_left = y_left;
+				//effective[i].y_right = y_right;
+				effective.emplace_back(effective_t{ i,y_left,y_right });
+			}
+		}
+
+		for (int i = 0; i < output.rows; i++)
+		{
+			auto intensity_I = inverted.ptr<uchar>(effective[i].x); // 获取第effective[i].x行的指针
+			auto intensity_R = result.ptr<uchar>(effective[i].x); // 获取第effective[i].x行的指针
+			for (int j = effective[i].y_left + 2; j <= effective[i].y_right - 2; j++)
+			{
+				if (intensity_I[j] == 0 && intensity_R[j] == 0)
+				{
+					int T = 0;
+					int around = 4;
+					for (int k = 0; k < 4; k++)
+					{
+						if (j + direct[k] < effective[i].y_left || j + direct[k] > effective[i].y_right)
+						{
+							around--;
+							continue;
+						}
+
+						T += intensity_I[j + direct[k]];
+					}
+					intensity_R[j] = T >> 2; // 使用右移代替除法
+				}
+				else
+					intensity_R[j] = intensity_I[j];
+			}
+		}
+	}
+	else
+		FLAG_INVERT = true;
+	output = result.clone();
+}
+
+//对灰度图像进行去噪
+void PreprocessingAlgorithm_A::deNoise() {
 	cv::Mat result = output.clone();
 	cv::Mat mark = cv::Mat::zeros(output.rows, output.cols, CV_8UC1);  //区域生长标记
 	std::vector<spot_t> spot;
@@ -112,7 +184,7 @@ void preprocessing::deNoise() {
 }
 
 //转换图像的色彩空间和色彩深度的函数实现
-void preprocessing::convertColor() {
+void PreprocessingAlgorithm_A::convertColor() {
 	//检查图像的类型和通道数
 	if (data.type() != CV_8UC3) {
 		throw std::invalid_argument("The input image must be of type CV_8UC3");
@@ -144,11 +216,10 @@ void preprocessing::convertColor() {
 		}
 	}
 	output = result.clone();
-	result.release();
 }
 
 //计算图像补偿权重函数的实现
-void preprocessing::calculateWeight(cv::Mat channel[3], double weight[3]) {
+void PreprocessingAlgorithm_A::calculateWeight(cv::Mat channel[3], double weight[3]) {
 	//一些统计量数组
 	count_t count[3];//三通道灰度占比统计量，eg count[B]为，图像整体B通道灰度占三通道灰度之和的比
 	count[B] = { B,0 };
@@ -202,7 +273,7 @@ void preprocessing::calculateWeight(cv::Mat channel[3], double weight[3]) {
 		compensation[B] = (light[B] - light[G] - light[R]) / 4;
 		compensation[G] = count[G].weight + (count[B].weight - compensation[B]) / 2;
 		compensation[R] = count[R].weight + (count[B].weight - compensation[B]) / 2;
-		//fan_switch = false;
+		FLAG_INVERT = false;
 	}
 	//补偿后，若图像目标区域曝光较低
 	else

@@ -1,11 +1,15 @@
-#include "preprocessing.h"
+#include "ImageProcessing.h"
 using namespace std;
 using namespace cv;
+
 int main() {
-	Mat input = imread("test.jpg");
-	preprocessing p(input);
-	Mat gray(p.process());
-	namedWindow("1", WINDOW_FREERATIO);//cv::WINDOW_NORMAL, cv::WINDOW_FREERATIO
+	Mat img = imread("1.jpg");
+	PA p=new PA_A(img);
+	Preprocess q(p);
+	Mat gray = q.execute();
+	namedWindow("1", WINDOW_NORMAL);
 	imshow("1", gray);
 	waitKey(0);
+	delete p;
+	return 0;
 }
