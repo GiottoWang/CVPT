@@ -1,0 +1,96 @@
+bool XIAO_QIA_YIN(const Mat &srcImage,Mat &outImage)
+{
+	bool flag = false;
+	Mat Image_D = srcImage.clone();
+	int count = 0;
+	int w[2048];
+	int wm = 0;
+	double ws = 0,wp = 0,wq = 0;
+	int number = Image_D.rows;
+	int a =0;
+	int Ip = 0;
+	int R = 0,C = 0;
+	for ( int i = 0; i< Image_D.rows ; i++)
+	{
+		for (int j = 0; j<Image_D.cols ; j++)
+		{
+			if (Image_D.at<uchar>(i,j) != 0)
+			{
+				count++;
+			}
+		}
+		if (count != 0)
+		{
+			w[i] = count;
+		}
+		else
+		{
+			w[i] = 0;
+			number--;
+		}
+		if (wm < w[i])
+		{
+			wm = w[i];
+		}
+		ws += w[i];
+		count = 0;
+	}
+	if (wm % 2 ==0)
+	{
+		C = wm + 1;
+	}
+	else
+	{
+		C = wm;
+	}
+	wp = ws / number;
+	wq = 20*(wm - wp);
+	int Wq = wq;
+	if (Wq % 2 != 0)
+	{
+		R = Wq;
+	}
+	else
+	{
+		R = Wq + 1;
+	}
+
+	Ip = wp;
+	if (Ip % 2 ==0)
+	{
+		Ip--;
+	}
+	int a0 = (C+1) / 2;
+	int b0 = (Ip-1) / 2;
+	double s = 0.2,k = 0;
+	Mat Model = (Mat_<double>(R,C));
+	//k = (1 - (R - Ip)*C*s*k)/(Ip*C);
+	k = 1 / (Ip*R + (C - Ip)*R*s);
+	for (int ii = 0; ii < C; ii++)
+	{
+		for (int jj = 0; jj < R; jj++)
+		{
+			if (ii<(a0-b0-1) || ii>(a0+b0-1))
+			{
+				Model.at<double>(jj,ii) = s*k;
+			}
+			else
+			{
+				Model.at<double>(jj,ii) = k;
+			}
+			
+		}
+	}
+	filter2D(Image_D, outImage,-1, Model,Point(-1,-1),BORDER_DEFAULT);
+	//for ( int iii = 0; iii< outImage.rows ; iii++)
+	//{
+	//	for (int jjj = 0; jjj<outImage.cols ; jjj++)
+	//	{
+	//		if (outImage.at<uchar>(iii,jjj) < 5)
+	//		{
+	//			outImage.at<uchar>(iii,jjj) = 0;
+	//		}
+	//	}
+	//}
+	return flag;
+}

@@ -1,0 +1,54 @@
+bool Fasogbon_Parabolic(const Mat &srcImage,Mat &outImage)
+{	
+	bool flag = false;
+	Mat Image_C = srcImage.clone();
+	int a_x ;
+	int a_y;
+	int a_j;
+	double a0 = 0;
+	double b0 = 0;
+	double c0 = 0;
+	double a_yy = 0;
+	std::vector<double> x;
+	std::vector<double> y;
+	Mat Image_DD = Mat::zeros(srcImage.rows, srcImage.cols, CV_8UC1);
+	for ( int i = 0; i< Image_C.rows ; i++)
+	{
+		//a = Image_C.at<uchar>(i,0);
+		for (int j = 0; j<Image_C.cols ; j++)
+		{
+				m_x[j] = j;
+				m_y[j] = Image_C.at<uchar>(i,j);
+				x.push_back(m_x[j]);
+				y.push_back(m_y[j]);
+		}
+		czy::Fit fit;
+		fit.polyfit(x,y,2,true);
+		c0 = fit.getFactor(0);
+		b0 = fit.getFactor(1);
+		a0 = fit.getFactor(2);
+		a_x = - b0 / (2 * a0);
+		double I_0,I_1,I_2;
+		I_0 = a0 * (pow( (a_x-1) ,2)) + b0 * (a_x-1) + c0;
+		I_1 = a0 * (pow( a_x , 2)) + b0 * a_x + c0;
+		I_2 = a0 * (pow( (a_x+1) ,2)) + b0 * (a_x+1) + c0;
+		if(( 4*I_1 - 2 * (I_0 + I_2) ) != 0)
+		{
+			a_x = a_x + ((I_2 - I_0)/(4*I_1 - 2 * (I_0 + I_2)));
+		}
+		//for (int jj = 0; jj<Image_C.cols ; jj++)
+		//{
+		//	if (jj == a_j)
+		//	{
+		//		Image_C.at<uchar>(i,jj) = 255;
+		//	}
+		//	else
+		//	{
+		//		Image_C.at<uchar>(i,jj) = 0;
+		//	}
+		//}
+	Image_DD.at<uchar>(i,a_x) = 255;
+	}
+	outImage = Image_DD;
+	return flag;
+}

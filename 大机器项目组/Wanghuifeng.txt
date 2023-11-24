@@ -1,0 +1,156 @@
+bool HuiFeng_Wang_WeiGaiJin(const Mat & srcImage, Mat & outImage)
+{
+	Mat Image_C = srcImage.clone();
+	Mat Gx, Gy;
+	Mat flags = Mat::zeros(srcImage.rows, srcImage.cols, CV_8UC1);
+	Mat Fina2 = Mat::zeros(srcImage.rows, srcImage.cols, CV_8UC1);
+	Mat Fina = Mat::zeros(srcImage.rows, srcImage.cols, CV_32FC1);
+	float direct_9[9][2] = { {-1,-1}, {0,-1}, {1,-1}, {1,0}, {1,1}, {0,1}, {-1,1}, {-1,0}, {0,0} };  //定义九宫格
+	float P_i[8][2], P_j[8][2];
+	int T = 0; //阈值
+	float gray_num01 = 0, gray_num02 = 0;
+	float Gsx = 0, Gsy = 0;
+	float alpha, theta, gamma;
+	int Gs_i, Gs_j;
+	int j_mid;
+	int *j_num = new int[srcImage.rows]();
+	int l = 1;
+	float u, v;
+	float Pi, Pj;
+	float P_center, x_center, y_center;
+	float I_num01 = 0, I_num02 = 0;
+	float Ip1, Ip2 = 0, Ip3 = 0;
+
+	for (int i = 0; i < srcImage.rows; i++)
+	{
+
+			for (int j = 0; j < srcImage.cols; j++)
+			{
+				gray_num01 += ((srcImage.at<uchar>(i, j) - T) *j);
+				gray_num02 += srcImage.at<uchar>(i, j) - T;
+
+			}
+			if (gray_num02 == (-T * srcImage.cols))
+			{
+				gray_num01 = 0;
+				gray_num02 = 0;
+				j_num[i] = -1;
+				continue;
+			}
+			j_mid = gray_num01 / gray_num02;
+			j_num[i] = j_mid;
+			flags.at<uchar>(i, j_mid) = 255;
+			gray_num01 = 0;
+			gray_num02 = 0;
+		
+
+	}
+	Sobel(flags, Gx, flags.depth(), 1, 0);
+	Sobel(flags, Gy, flags.depth(), 0, 1);
+	for (int i = 0; i < flags.rows; i++)
+	{
+		if (j_num[i] == -1)
+			continue;
+		j_mid = j_num[i];
+		for (int ii = -2; ii <= 2; ii++)
+		{
+			for (int jj = -2; jj <= 2; jj++)
+			{
+				Gs_i = i + ii;
+				Gs_j = j_mid + jj;
+				if (Gs_i < 0 || Gs_j < 0 ||
+					(Gs_i >= flags.rows) || (Gs_j >= flags.cols))
+					continue;
+				Gsx += Gx.at<uchar>(Gs_i, Gs_j)*Gx.at<uchar>(Gs_i, Gs_j) - Gy.at<uchar>(Gs_i, Gs_j)*Gy.at<uchar>(Gs_i, Gs_j);
+				Gsy += 2 * Gx.at<uchar>(Gs_i, Gs_j)* Gy.at<uchar>(Gs_i, Gs_j);
+			}
+		}
+		if (Gsx == 0)
+			continue;
+		theta = atan(Gsy / Gsx);
+		if (Gsx > 0) {
+			alpha = 0.5*(theta + PI);
+		}
+		if (Gsx < 0 && Gsy >= 0) {
+			alpha = 0.5*(theta + 2 * PI);
+		}
+		if (Gsx < 0 && Gsy < 0) {
+			alpha = 0.5*theta;
+		}
+		u = cos(alpha - 0.5*PI);//sin(alpha)
+		v = sin(alpha - 0.5*PI);//-coa(alpha)
+		//P[0][0] = i;
+		//P[0][1] = j_mid;
+		Ip3 = flags.at<uchar>(i, j_mid);
+		for (int pp = 0; pp < 2; pp++) {
+			if (pp % 2 == 0) {
+				Pi = ceil(i - l * u);
+				if (v > 0) { Pj = ceil(j_mid - l * v); };
+				if (v <= 0) { Pj = floor(j_mid - l * v); };
+				if (alpha > 0 && alpha < 0.5*PI)
+				{
+					if (Pi - 1 < 0 || Pj + 1 >= flags.cols)
+						continue;
+					Ip1 = (1 - u)*(1 - v)*flags.at<uchar>(Pi, Pj)
+						+ u * (1 - v)*flags.at<uchar>(Pi - 1, Pj)
+						+ (1 - u)*v*flags.at<uchar>(Pi, Pj + 1)
+						+ u * v*flags.at<uchar>(Pi - 1, Pj + 1);
+				}
+				if (alpha >= 0.5*PI && alpha <= PI)
+				{
+					if (Pi - 1 < 0 || Pj - 1 < 0)
+						continue;
+					Ip1 = (1 - u)*(1 - v)*flags.at<uchar>(Pi, Pj)
+						+ u * (1 - v)*flags.at<uchar>(Pi - 1, Pj)
+						+ (1 - u)*v*flags.at<uchar>(Pi, Pj - 1)
+						+ u * v*flags.at<uchar>(Pi - 1, Pj - 1);
+				}
+				Ip2 += Ip1 * l*pow(-1, pp);
+			}
+			else {
+				Pi = 2 * i - Pi;
+				Pj = 2 * j_mid - Pj;
+				if (alpha > 0 && alpha < 0.5*PI)
+				{
+					if (Pj - 1 < 0 || Pi + 1 >= flags.cols)
+						continue;
+					Ip1 = (1 - u)*(1 - v)*flags.at<uchar>(Pi, Pj)
+						+ u * (1 - v)*flags.at<uchar>(Pi + 1, Pj)
+						+ (1 - u)*v*flags.at<uchar>(Pi, Pj - 1)
+						+ u * v*flags.at<uchar>(Pi + 1, Pj - 1);
+				}
+				if (alpha >= 0.5*PI && alpha <= PI)
+				{
+					if (Pi + 1 >= flags.rows || Pj + 1 >= flags.cols)
+						continue;
+					Ip1 = (1 - u)*(1 - v)*flags.at<uchar>(Pi, Pj)
+						+ u * (1 - v)*flags.at<uchar>(Pi + 1, Pj)
+						+ (1 - u)*v*flags.at<uchar>(Pi, Pj + 1)
+						+ u * v*flags.at<uchar>(Pi + 1, Pj + 1);
+				}
+				Ip2 += Ip1 * l*pow(-1, pp);
+				l++;
+			}
+
+			Ip3 += Ip1;
+		}
+		l = 1;
+		P_center = abs(Ip2 / Ip3);
+		if (Ip2 / Ip3 > 0) {
+			gamma = alpha;
+		}
+		if (Ip2 / Ip3 <= 0) {
+			gamma = alpha + PI;
+		}
+		x_center = i + P_center * cos(gamma);
+		y_center = j_mid + P_center * sin(gamma);
+		if (x_center >= srcImage.rows || y_center >= srcImage.cols || x_center < 0 || y_center < 0)
+			continue;
+		Fina.at<float>(x_center, y_center) = 255;
+		Fina2.at<uchar>(round(x_center), round(y_center)) = 255;
+
+
+	}
+	outImage = Fina2.clone();
+	return false;
+}

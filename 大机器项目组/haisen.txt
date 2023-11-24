@@ -1,0 +1,82 @@
+bool Hessian(const Mat & srcImage, Mat & outImage)
+{
+	int width = srcImage.cols;
+	int height = srcImage.rows;
+	Mat Image_C(height, width, CV_8UC1, Scalar::all(0));
+	int W = 5;
+	float sigma = 2;
+	Mat xxGauKernel(2 * W + 1, 2 * W + 1, CV_32FC1, Scalar::all(0));
+	Mat xyGauKernel(2 * W + 1, 2 * W + 1, CV_32FC1, Scalar::all(0));
+	Mat yyGauKernel(2 * W + 1, 2 * W + 1, CV_32FC1, Scalar::all(0));
+	for (int i = -W; i <= W; i++)
+	{
+		for (int j = -W; j <= W; j++)
+		{
+			xxGauKernel.at<float>(i + W, j + W) = (1 - (i*i) / (sigma*sigma))*exp(-1 * (i*i + j * j) / (2 * sigma*sigma))*(-1 / (2 * PI*pow(sigma, 4)));
+			yyGauKernel.at<float>(i + W, j + W) = (1 - (j*j) / (sigma*sigma))*exp(-1 * (i*i + j * j) / (2 * sigma*sigma))*(-1 / (2 * PI*pow(sigma, 4)));
+			xyGauKernel.at<float>(i + W, j + W) = ((i*j))*exp(-1 * (i*i + j * j) / (2 * sigma*sigma))*(1 / (2 * PI*pow(sigma, 6)));
+		}
+	}
+	Mat xxDerivae(height, width, CV_32FC1, Scalar::all(0));
+	Mat yyDerivae(height, width, CV_32FC1, Scalar::all(0));
+	Mat xyDerivae(height, width, CV_32FC1, Scalar::all(0));
+	//图像与高斯二阶偏导数模板进行卷积
+	filter2D(srcImage, xxDerivae, xxDerivae.depth(), xxGauKernel);
+	filter2D(srcImage, yyDerivae, yyDerivae.depth(), yyGauKernel);
+	filter2D(srcImage, xyDerivae, xyDerivae.depth(), xyGauKernel);
+
+	for (int h = 0; h < height; h++)
+	{
+		for (int w = 0; w < width; w++)
+		{
+
+
+			//map<int, float> best_step;
+
+		/*	int HLx = h - STEP; if (HLx < 0){ HLx = 0; }
+			int HUx = h + STEP; if (HUx >= height){ HUx = height - 1; }
+			int WLy = w - STEP; if (WLy < 0){ WLy = 0; }
+			int WUy = w + STEP; if (WUy >= width){ WUy = width - 1; }
+			float fxx = srcImage.at<uchar>(h, WUy) + srcImage.at<uchar>(h, WLy) - 2 * srcImage.at<uchar>(h, w);
+			float fyy = srcImage.at<uchar>(HLx, w) + srcImage.at<uchar>(HUx, w) - 2 * srcImage.at<uchar>(h, w);
+			float fxy = 0.25*(srcImage.at<uchar>(HUx, WUy) + srcImage.at<uchar>(HLx, WLy) - srcImage.at<uchar>(HUx, WLy) - srcImage.at<uchar>(HLx, WUy));*/
+
+
+			float fxx = xxDerivae.at<float>(h, w);
+			float fyy = yyDerivae.at<float>(h, w);
+			float fxy = xyDerivae.at<float>(h, w);
+
+
+			float myArray[2][2] = { { fxx, fxy }, { fxy, fyy } };          //构建矩阵，求取特征值
+
+			Mat Array(2, 2, CV_32FC1, myArray);
+			Mat eValue;
+			Mat eVector;
+
+			eigen(Array, eValue, eVector);                               //矩阵是降序排列的
+			float a1 = eValue.at<float>(0, 0);
+			float a2 = eValue.at<float>(1, 0);
+
+			if ((a1 > 0) && (abs(a1) > (1 + abs(a2))))             //根据特征向量判断线性结构
+			{
+
+
+				Image_C.at<uchar>(h, w) = pow((abs(a1) - abs(a2)), 4);
+				//Image_C.at<uchar>(h, w) = pow((ABS(a1) / ABS(a2))*(ABS(a1) - ABS(a2)), 1.5);
+
+
+			}
+
+
+
+		}
+
+	}
+
+	Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
+	morphologyEx(Image_C, Image_C, MORPH_CLOSE, element);
+	outImage = Image_C.clone();
+
+
+	return false;
+}

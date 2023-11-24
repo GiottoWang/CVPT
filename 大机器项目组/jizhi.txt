@@ -1,0 +1,154 @@
+bool Jizhifa(const Mat & srcImage, Mat & outImage)
+{
+	Mat Image_C = srcImage.clone();
+	int* k = new int[srcImage.rows]();
+	k[0] = -1;
+	int j_min = -1, j_max = -1, j_num = 0, j_0_num = 0;
+	int n_index;//标志量
+	int modelLength = 5;
+	int Th = 0;
+	int L = 5;
+	for (int i = 0; i < Image_C.rows; i++)
+	{
+		int a = Image_C.at<uchar>(0, 0);
+		int jj = -1;
+		if (i == 0)
+		{
+			for (int j = 0; j < srcImage.cols - modelLength; j++)
+			{
+				if (srcImage.at<uchar>(i, j) > Th) {
+					j_min = j - modelLength;
+					break;
+				}
+			}
+
+			if (j_min == -1)
+			{
+				k[i] = -1;
+				continue;
+			}
+		}
+		else
+		{
+			if (k[i - 1] == -1)
+			{
+				for (int j = 0; j < srcImage.cols - modelLength; j++)
+				{
+					if (srcImage.at<uchar>(i, j) > Th) {
+						j_min = j - modelLength;
+						break;
+					}
+				}
+
+				if (j_min == -1)
+				{
+					k[i] = -1;
+					continue;
+				}
+			}
+			else
+			{
+				if (srcImage.at<uchar>(i, k[i - 1]) > Th)
+				{
+					for (int j = k[i - 1] - 1; j >= 0; j--)
+					{
+						if (srcImage.at<uchar>(i, j) <= Th)
+							j_0_num++;
+						if (srcImage.at<uchar>(i, j) > Th)
+						{
+							j_0_num = 0;
+							continue;
+						}
+						if (j_0_num == L)
+						{
+							j_min = j + L - modelLength;
+							j_0_num = 0;
+							break;
+						}
+					}
+				}
+				else
+				{
+					n_index = k[i - 1];
+					for (int j = k[i - 1] - 1; j >= 0; j--)
+					{
+						if (srcImage.at<uchar>(i, j) > Th)
+						{
+							j_0_num = 0;
+							for (int jj = j - 1; jj >= 0; jj--)
+							{
+								if (srcImage.at<uchar>(i, jj) <= Th)
+									j_0_num++;
+								if (srcImage.at<uchar>(i, jj) > Th)
+								{
+									j_0_num = 0;
+									continue;
+								}
+								if (j_0_num == L)
+								{
+									j_min = jj + L;
+									j_0_num = 0;
+									break;
+								}
+							}
+							break;
+						}
+						n_index--;
+					}
+					if (n_index == 0)
+					{
+						n_index = k[i - 1] + 1;
+						for (int j = k[i - 1] + 1; j < srcImage.cols - modelLength; j++)
+						{
+							if (srcImage.at<uchar>(i, j) > Th)
+							{
+								j_min = j - modelLength;
+								break;
+							}
+							n_index++;
+						}
+						if (n_index == srcImage.cols - modelLength)
+						{
+							k[i] = -1;
+							j_min = -1;
+						}
+					}
+				}
+			}
+
+		}
+
+		if (j_min != -1)
+		{
+			for (int j = j_min + modelLength + 1; j < srcImage.cols - modelLength; j++)
+			{
+				if (srcImage.at<uchar>(i, j) <= Th) {
+					j_num++;
+				}
+				if (srcImage.at<uchar>(i, j) > Th) {
+					j_num = 0;
+					continue;
+				}
+				if (j_num == L) {
+					j_max = j - L;
+					j_num = 0;
+					break;
+				}
+			}
+			for (int j = j_min; j <= j_max; j++)
+			{
+				if (Image_C.at<uchar>(i, j) == 0)
+					continue;
+				if (Image_C.at<uchar>(i, j) >= a)
+				{
+					a = Image_C.at<uchar>(i, j);
+					jj = j;
+				}
+			}
+			if (jj != -1)
+				outImage.at<uchar>(i, jj) = 255;
+			k[i] = jj;
+		}
+	}
+	return false;
+}
